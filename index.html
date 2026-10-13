@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GRID DUEL — 空間パズル試作</title>
+<style>
+:root { color-scheme: light dark; --bg: light-dark(#f4f2ec,#171a20); --panel: light-dark(#fffefa,#222731); --ink: light-dark(#20252d,#f1f3f5); --muted: light-dark(#6d7480,#aab2bf); --line: light-dark(#d9d8d0,#414956); --cell: light-dark(#ebe9e1,#2c333e); --blue: light-dark(#3567e8,#86a5ff); --red: light-dark(#d95c4f,#ff9489); --accent: light-dark(#e6edff,#29385c); }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+#app { min-height:100vh; width:100%; background:var(--bg); padding:clamp(16px,3vw,34px); }
+header { max-width:1100px; margin:0 auto 24px; display:flex; align-items:flex-end; justify-content:space-between; gap:16px; }
+.kicker { font-size:11px; font-weight:800; letter-spacing:.18em; color:var(--blue); }
+h1 { margin:5px 0 4px; font-size:clamp(25px,4vw,39px); line-height:1.05; letter-spacing:-.04em; }
+.subtitle { color:var(--muted); font-size:13px; }
+.pill { border:1px solid var(--line); border-radius:999px; padding:7px 11px; font-size:11px; font-weight:700; white-space:nowrap; }
+main { max-width:1400px; margin:auto; display:grid; grid-template-columns:minmax(150px,200px) minmax(280px,1fr) minmax(230px,290px); gap:18px; align-items:start; }
+.boards { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.board-card,.side-card { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:16px; min-width:0; }
+.board-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:13px; }
+.player { display:flex; align-items:center; gap:8px; font-weight:800; font-size:14px; }
+.dot { width:10px; height:10px; border-radius:3px; background:var(--blue); }
+.enemy .dot { background:var(--red); }
+.count { color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); grid-template-rows:repeat(12,minmax(0,1fr)); gap:4px; width:100%; aspect-ratio:1/2; }
+.cell { border:1px solid var(--line); border-radius:5px; background:var(--cell); min-width:0; min-height:0; padding:0; position:relative; cursor:pointer; transition:background .12s,border-color .12s; }
+.cell:disabled { cursor:default; }
+.cell.own { background:var(--blue); border-color:var(--blue); }
+.cell.foe { background:var(--red); border-color:var(--red); }
+.cell.collision { background:var(--cell); border:2px dashed var(--muted); }
+.cell.seed::after { content:""; position:absolute; inset:35%; border-radius:50%; background:white; opacity:.95; }
+.cell.preview { background:light-dark(#c8d6ff,#526baf); border:2px solid var(--blue); }
+.cell.invalid { background:light-dark(#f8d8d4,#6e3938); border-color:var(--red); }
+.cell.drag-target { outline:2px solid var(--blue); outline-offset:-2px; }
+.shape-btn[draggable="true"] { cursor:grab; }
+.shape-btn { touch-action:none; }
+.board-note { margin:11px 0 0; color:var(--muted); font-size:11px; line-height:1.5; min-height:33px; }
+aside { display:flex; flex-direction:column; gap:14px; }
+.side-card h2 { font-size:14px; margin:0 0 10px; }
+.status { font-size:13px; line-height:1.65; }
+.status strong { color:var(--blue); }
+.shapes { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
+.shape-btn { background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:8px 5px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:7px; min-height:78px; }
+.shape-btn[aria-pressed="true"] { border:2px solid var(--blue); background:var(--accent); padding:7px 4px; }
+.shape-name { font-size:10px; font-weight:750; }
+.shape-btn.used-enemy { border-color:var(--red); box-shadow:inset 0 0 0 1px var(--red); }
+.shape-btn.used-enemy .shape-name { color:var(--red); }
+.turn-used { font-size:10px; color:var(--red); font-weight:800; }
+.mini { display:grid; gap:2px; width:44px; height:30px; }
+.mini span { background:var(--line); border-radius:2px; }
+.shape-btn[aria-pressed="true"] .mini span { background:var(--blue); }
+.hint { margin-top:10px; color:var(--muted); font-size:11px; line-height:1.5; }
+button.action { width:100%; border:0; border-radius:11px; background:var(--blue); color:white; font-size:13px; font-weight:800; padding:12px 14px; cursor:pointer; margin-top:12px; }
+button.action:disabled { opacity:.42; cursor:not-allowed; }
+button.secondary { background:transparent; border:1px solid var(--line); color:var(--ink); }
+.legend { display:flex; flex-wrap:wrap; gap:10px; margin-top:11px; font-size:10px; color:var(--muted); }
+.legend span { display:flex; align-items:center; gap:5px; }
+.legend i { display:inline-block; width:8px; height:8px; border-radius:2px; background:var(--blue); }
+.legend .red { background:var(--red); }
+.rules { color:var(--muted); font-size:11px; line-height:1.7; padding-left:17px; margin:0; }
+.log { font-size:11px; color:var(--muted); line-height:1.65; max-height:100px; overflow:auto; }
+footer { max-width:1100px; margin:18px auto 0; color:var(--muted); font-size:10px; }
+@media(max-width:900px) { main { grid-template-columns:minmax(125px,170px) minmax(220px,1fr); } aside { grid-column:1/-1; display:grid; grid-template-columns:1fr 1fr; } .controls-card { grid-column:1/-1; } }
+@media(max-width:600px) { #app { padding:13px; } header { align-items:flex-start; flex-direction:column; } main { grid-template-columns:minmax(95px,1fr) minmax(180px,1.5fr); gap:8px; } .board-card,.side-card { padding:9px; border-radius:13px; } .board { gap:3px; } .cell { border-radius:3px; } .board-head { align-items:flex-start; flex-direction:column; gap:4px; margin-bottom:9px; } .board-note { font-size:10px; } aside { grid-column:1/-1; grid-template-columns:1fr; } .controls-card { grid-column:auto; } }
+</style>
+</head>
+<body>
+<div id="app">
+<header><div><div class="kicker">TACTICAL SPATIAL PUZZLE / PROTOTYPE 01</div><h1>GRID DUEL</h1><div class="subtitle">形を選び、つなげ、相手の端を目指す。</div></div><div class="pill">LOCAL PLAY · VS CPU</div></header>
+<main>
+<section class="side-card" aria-label="敵軍の使用済みパネル"><h2>敵軍の選択済みパネル</h2><div class="shapes" id="enemyShapes" aria-label="敵軍の使用済みパネル"></div><div class="hint">赤枠がこの一巡で使用済み。</div></section>
+<section class="boards" aria-label="ゲーム盤" style="grid-template-columns:1fr">
+ <div class="board-card"><div class="board-head"><div class="player"><span class="dot"></span>自軍の端 <span style="color:var(--muted);font-weight:500">↑</span> 敵軍の端 <span class="dot" style="background:var(--red)"></span></div><div class="count" id="playerCount">0 / 72 マス</div></div><div class="board" id="playerBoard" aria-label="90度回転した6かける12盤面"></div><p class="board-note">青＝自軍、赤＝敵軍。相手のマスと重なった部分は双方とも消失し、重ならない部分だけが残ります。枠外にはみ出した部分は消失し、枠内に1マスもない配置はできません。自軍の端から連続してつながるマスにのみ接続できます。薄い色は配置プレビューです。</p></div>
+</section>
+<aside>
+ <div class="side-card controls-card"><h2>① 自軍のパネルを選ぶ</h2><div class="shapes" id="shapes"></div><div class="hint" id="shapeHint">パネルを選択してください。</div><h2 style="margin-top:17px">② 盤面に置く</h2><div class="status" id="status" aria-live="polite">配置したパネルをタッチ／クリックするとターンを確定できます。</div><button class="action" id="submit" disabled>配置を確定して同時公開</button><button class="action secondary" id="reset">最初からやり直す</button><div class="legend"><span><i></i>自軍</span><span><i class="red"></i>敵軍</span></div></div>
+ <div class="side-card"><h2>ルール（試作）</h2><ol class="rules"><li>6×6の盤面を2つ横につないだ戦場（表示は90度回転）。</li><li>自軍は下端、敵軍は上端からスタート。</li><li>自軍の端から連続してつながっている自軍マスに接するように配置する。分離したマスや孤立した集団からは伸ばせない。</li><li>パネルの使用制限は両軍それぞれ独立。各軍は5種類を一巡するまで同じ種類を再使用できない。</li><li>相手のマスと重なった部分は双方とも消失する。</li><li>枠外にはみ出した部分は消失する。ただし、枠内に1マスも置かれない配置はできない。</li><li>同じターンに両軍のパネルが重なった場合も、重なったマスだけが両軍とも消失し、重ならないマスは残る。</li><li>相手側の端に到達したら勝利。</li></ol></div>
+ <div class="side-card"><h2>対局ログ</h2><div class="log" id="log">対局開始。中央のスタート地点から陣地を広げよう。</div></div>
+</aside>
+</main>
+<footer>試作品：同時配置はCPUの手で再現しています。重なったマスだけが両軍とも消失し、重ならないマスは残ります。</footer>
+</div>
+<script>
+(() => {
+ const N=6,W=12;
+ // Five pieces: four rotations of an L triomino, plus a horizontal three-cell bar.
+ const shapes=[
+  {id:'L1',name:'L字 A',cells:[[0,0],[0,1],[1,0]],w:2,h:2},
+  {id:'L2',name:'L字 B',cells:[[0,0],[1,0],[1,1]],w:2,h:2},
+  {id:'L3',name:'L字 C',cells:[[0,1],[1,0],[1,1]],w:2,h:2},
+  {id:'L4',name:'L字 D',cells:[[0,0],[0,1],[1,1]],w:2,h:2},
+  {id:'I3',name:'直線',cells:[[0,0],[0,1],[0,2]],w:3,h:1}
+ ];
+ let player,selected=0,preview=null,round=1,finished=false,logs=[];
+ const $=id=>document.getElementById(id);
+ function newBoard(){return Array.from({length:N},()=>Array(W).fill(0));}
+ let playerUsedPieces=new Set(),enemyUsedPieces=new Set();
+ function reset(){player=newBoard();selected=0;preview=null;round=1;finished=false;playerUsedPieces=new Set();enemyUsedPieces=new Set();logs=['対局開始。自軍は下端、敵軍は上端から出発。両軍それぞれ5種類のパネルは一巡するまで再使用できません。'];renderAll();}
+ function owns(v,side){return side===1?(v===1||v===2):(v===-1||v===-2);}
+ function connectedOwn(b,side){const seen=new Set(),queue=[];for(let r=0;r<N;r++){const c=side===1?0:W-1;if(owns(b[r][c],side)){const k=r+','+c;seen.add(k);queue.push([r,c]);}}for(let i=0;i<queue.length;i++){const [r,c]=queue[i];for(const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]){const rr=r+dr,cc=c+dc,k=rr+','+cc;if(rr>=0&&rr<N&&cc>=0&&cc<W&&owns(b[rr][cc],side)&&!seen.has(k)){seen.add(k);queue.push([rr,cc]);}}}return seen;}
+ function legal(b,shape,r,c,side){
+  const cells=shape.cells.map(([dr,dc])=>[r+dr,c+dc]);
+  const inside=cells.filter(([rr,cc])=>rr>=0&&rr<N&&cc>=0&&cc<W);
+  if(!inside.length||inside.some(([rr,cc])=>owns(b[rr][cc],side)))return false;
+  if(side===1&&inside.some(([rr,cc])=>cc===0))return true;
+  if(side===-1&&inside.some(([rr,cc])=>cc===W-1))return true;
+  const connected=connectedOwn(b,side);
+  return inside.some(([rr,cc])=>[[1,0],[-1,0],[0,1],[0,-1]].some(([dr,dc])=>connected.has((rr+dr)+','+(cc+dc))));
+ }
+ function legalMoves(b,side,used=new Set()){const out=[];shapes.forEach((s,si)=>{if(used.has(si))return;for(let r=0;r<N;r++)for(let c=0;c<W;c++)if(legal(b,s,r,c,side))out.push({si,r,c});});return out;}
+ function addLog(s){logs.unshift(s);logs=logs.slice(0,8);}
+ function chooseAiMove(b,userMove,moves){
+  const cellsFor=move=>shapes[move.si].cells.map(([dr,dc])=>[move.r+dr,move.c+dc]).filter(([r,c])=>r>=0&&r<N&&c>=0&&c<W);
+  const key=([r,c])=>r+','+c;
+  const userCells=cellsFor(userMove),userKeys=new Set(userCells.map(key));
+  let best=null,bestScore=-Infinity;
+  for(const move of moves){
+   const aiCells=cellsFor(move),aiKeys=new Set(aiCells.map(key)),next=b.map(row=>row.slice());
+   const collisions=new Set([...userKeys].filter(k=>aiKeys.has(k)));
+   userCells.forEach(([r,c])=>{if(owns(b[r][c],-1))collisions.add(key([r,c]));});
+   aiCells.forEach(([r,c])=>{if(owns(b[r][c],1))collisions.add(key([r,c]));});
+   userCells.forEach(([r,c])=>{if(!collisions.has(key([r,c])))next[r][c]=1;});
+   aiCells.forEach(([r,c])=>{if(!collisions.has(key([r,c])))next[r][c]=-1;});
+   collisions.forEach(k=>{const [r,c]=k.split(',').map(Number);next[r][c]=0;});
+   const aiReach=connectedOwn(next,-1),playerReach=connectedOwn(next,1);
+   const aiFront=aiReach.size?Math.min(...Array.from(aiReach,k=>Number(k.split(',')[1]))):W;
+   const playerFront=playerReach.size?Math.max(...Array.from(playerReach,k=>Number(k.split(',')[1]))):-1;
+   let score=(W-1-aiFront)*32-Math.max(0,playerFront)*24+aiReach.size*.15-playerReach.size*.08;
+   const aiWon=next.some(row=>row[0]===-1),playerWon=next.some(row=>row[W-1]===1);
+   if(aiWon&&playerWon)score+=500;
+   else if(aiWon)score+=100000;
+   else if(playerWon)score-=100000;
+   score+=Math.random()*.001;
+   if(score>bestScore){best=move;bestScore=score;}
+  }
+  return best;
+ }
+ function renderShapes(){const root=$('shapes');root.innerHTML='';const enemyRoot=$('enemyShapes');enemyRoot.innerHTML='';shapes.forEach((s,i)=>{const btn=document.createElement('button');btn.className='shape-btn';btn.setAttribute('aria-pressed',String(i===selected));btn.disabled=playerUsedPieces.has(i);btn.style.opacity=playerUsedPieces.has(i)?'.38':'1';btn.innerHTML=`<div class="mini"></div><div class="shape-name">${s.name}${playerUsedPieces.has(i)?' ✓':''}</div>`;const mini=btn.querySelector('.mini');mini.style.gridTemplateColumns=`repeat(${s.h},1fr)`;mini.style.gridTemplateRows=`repeat(${s.w},1fr)`;mini.style.width=(44*s.h/Math.max(s.h,s.w))+'px';mini.style.height=(30*s.w/Math.max(s.h,s.w))+'px';for(let r=0;r<s.w;r++)for(let c=0;c<s.h;c++){const cell=document.createElement('span');if(s.cells.some(([rr,cc])=>s.w-1-cc===r&&s.h-1-rr===c))cell.style.background=i===selected?'var(--blue)':'var(--muted)';else cell.style.visibility='hidden';mini.appendChild(cell);}btn.addEventListener('click',()=>{if(finished||playerUsedPieces.has(i))return;selected=i;preview=null;renderAll();});root.appendChild(btn);const enemyBtn=document.createElement('div');enemyBtn.className='shape-btn'+(enemyUsedPieces.has(i)?' used-enemy':'');enemyBtn.innerHTML=`<div class="mini"></div><div class="shape-name">${s.name}</div><div class="turn-used">${enemyUsedPieces.has(i)?'使用済み':'未使用'}</div>`;const enemyMini=enemyBtn.querySelector('.mini');enemyMini.style.gridTemplateColumns=`repeat(${s.h},1fr)`;enemyMini.style.gridTemplateRows=`repeat(${s.w},1fr)`;enemyMini.style.width=(44*s.h/Math.max(s.h,s.w))+'px';enemyMini.style.height=(30*s.w/Math.max(s.h,s.w))+'px';for(let r=0;r<s.w;r++)for(let c=0;c<s.h;c++){const cell=document.createElement('span');if(s.cells.some(([rr,cc])=>s.w-1-cc===r&&s.h-1-rr===c))cell.style.background=enemyUsedPieces.has(i)?'var(--red)':'var(--muted)';else cell.style.visibility='hidden';enemyMini.appendChild(cell);}enemyRoot.appendChild(enemyBtn);});$('shapeHint').textContent=shapes[selected].name+'：'+shapes[selected].cells.length+'マス。'+(playerUsedPieces.has(selected)?'この一巡では使用済みです。':'自軍で使ったパネルは、自軍の一巡が終わるまで再使用できません。');}
+ function drawBoard(id,b,isPlayer){const root=$(id);root.innerHTML='';const shape=shapes[selected];for(let vr=W-1;vr>=0;vr--)for(let vc=0;vc<N;vc++){const r=N-1-vc,c=vr;const btn=document.createElement('button');btn.className='cell';btn.setAttribute('aria-label',`${r+1}行${c+1}列`);if(owns(b[r][c],1))btn.classList.add('own');if(owns(b[r][c],-1))btn.classList.add('foe');if(Math.abs(b[r][c])===2)btn.classList.add('seed');if(isPlayer&&preview){const cells=shape.cells.map(([dr,dc])=>[preview.r+dr,preview.c+dc]);if(cells.some(([rr,cc])=>rr===r&&cc===c)){btn.classList.add(legal(b,shape,preview.r,preview.c,1)?'preview':'invalid');}}
+  btn.disabled=!isPlayer||finished;
+  if(isPlayer&&!finished){btn.addEventListener('click',()=>{if(preview){const placedCells=shape.cells.map(([dr,dc])=>[preview.r+dr,preview.c+dc]);if(placedCells.some(([rr,cc])=>rr===r&&cc===c)){if(!playerUsedPieces.has(selected)&&legal(player,shape,preview.r,preview.c,1))submit();return;}}preview={r,c};renderAll();});}
+  root.appendChild(btn);
+ }
+ $(isPlayer?'playerCount':'enemyCount').textContent=b.flat().filter(v=>v!==0).length+' / 72 マス';}
+ function updateStatus(){const sub=$('submit');if(finished){$('status').innerHTML='<strong>対局終了</strong>　リセットして再挑戦できます。';sub.disabled=true;return;}if(!preview){$('status').textContent='盤面をクリックして配置位置を選びます。';sub.disabled=true;return;}const ok=!playerUsedPieces.has(selected)&&legal(player,shapes[selected],preview.r,preview.c,1);$('status').innerHTML=ok?`<strong>配置可能</strong>　${shapes[selected].name} を ${preview.r+1}行${preview.c+1}列から置きます。枠外の部分は消失します。`:`<strong style="color:var(--red)">配置不可</strong>　自軍との重なり、枠内に置けるマスがない配置、使用済みパネルを確認してください。`;sub.disabled=!ok;}
+ function renderAll(){renderShapes();$('shapes').querySelectorAll('.shape-btn').forEach((btn,i)=>{btn.draggable=!finished&&!playerUsedPieces.has(i);});drawBoard('playerBoard',player,true);updateStatus();$('log').innerHTML=logs.map(x=>`<div>• ${x}</div>`).join('');}
+ function submit(){
+  if(finished||!preview||playerUsedPieces.has(selected)||!legal(player,shapes[selected],preview.r,preview.c,1))return;
+  const userMove={si:selected,r:preview.r,c:preview.c};
+  const moves=legalMoves(player,-1,enemyUsedPieces);
+  const aiMove=moves.length?chooseAiMove(player,userMove,moves):null;
+  const cellsFor=move=>move?shapes[move.si].cells.map(([dr,dc])=>[move.r+dr,move.c+dc]).filter(([r,c])=>r>=0&&r<N&&c>=0&&c<W):[];
+  const userCells=cellsFor(userMove),aiCells=cellsFor(aiMove);
+  const key=([r,c])=>r+','+c;
+  const userSet=new Set(userCells.map(key)),aiSet=new Set(aiCells.map(key));
+  const collisions=new Set([...userSet].filter(k=>aiSet.has(k)));
+  userCells.forEach(([r,c])=>{if(owns(player[r][c],-1))collisions.add(key([r,c]));});
+  aiCells.forEach(([r,c])=>{if(owns(player[r][c],1))collisions.add(key([r,c]));});
+  userCells.forEach(([r,c])=>{if(!collisions.has(key([r,c])))player[r][c]=1;});
+  aiCells.forEach(([r,c])=>{if(!collisions.has(key([r,c])))player[r][c]=-1;});
+  collisions.forEach(k=>{const [r,c]=k.split(',').map(Number);player[r][c]=0;});
+  if(collisions.size)addLog(`第${round}手：${collisions.size}マスが重なって消失。重ならないマスは残りました。`);
+  else addLog(`第${round}手：自軍 ${shapes[userMove.si].name} と敵軍 ${aiMove?shapes[aiMove.si].name+'':'の配置なし'} を同時配置。`);
+  playerUsedPieces.add(userMove.si);
+  if(aiMove)enemyUsedPieces.add(aiMove.si);
+  if(playerUsedPieces.size===shapes.length){playerUsedPieces=new Set();addLog('自軍が5種類を一巡したため、自軍の全パネルが再使用可能になりました。');}
+  if(enemyUsedPieces.size===shapes.length){enemyUsedPieces=new Set();addLog('敵軍が5種類を一巡したため、敵軍の全パネルが再使用可能になりました。');}
+  round++;preview=null;
+  const playerWon=player.some(row=>row[W-1]===1),enemyWon=player.some(row=>row[0]===-1);
+  if(playerWon&&enemyWon){finished=true;addLog('両軍が同時に相手側の端へ到達。引き分け！');}
+  else if(playerWon){finished=true;addLog('自軍が敵軍の端に到達！ 勝利！');}
+  else if(enemyWon){finished=true;addLog('敵軍が自軍の端に到達しました。');}
+  else if(!legalMoves(player,1,playerUsedPieces).length&&!legalMoves(player,-1,enemyUsedPieces).length){finished=true;addLog('両軍とも合法手がなく、対局終了。');}
+  renderAll();
+ }
+ let draggedShape=null;
+ let touchDrag=null;
+ function clearTouchPreview(){Array.from($('playerBoard').children).forEach(el=>el.classList.remove('preview','invalid','drag-target'));}
+ function updateTouchPreview(x,y){const target=document.elementFromPoint(x,y);const cell=target&&target.closest('#playerBoard .cell');clearTouchPreview();if(!cell||touchDrag===null)return;const idx=Array.from($('playerBoard').children).indexOf(cell),r=N-1-(idx%N),c=W-1-Math.floor(idx/N);touchDrag.position={r,c};const ok=!playerUsedPieces.has(touchDrag.si)&&legal(player,shapes[touchDrag.si],r,c,1);shapes[touchDrag.si].cells.forEach(([dr,dc])=>{const rr=r+dr,cc=c+dc;if(rr>=0&&rr<N&&cc>=0&&cc<W)$('playerBoard').children[(W-1-cc)*N+(N-1-rr)].classList.add(ok?'preview':'invalid');});cell.classList.add('drag-target');}
+ $('shapes').addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'||finished)return;const btn=e.target.closest('.shape-btn');if(!btn)return;const i=Array.from($('shapes').children).indexOf(btn);if(i<0||playerUsedPieces.has(i))return;e.preventDefault();touchDrag={si:i,pointerId:e.pointerId,position:null};selected=i;updateTouchPreview(e.clientX,e.clientY);});
+ document.addEventListener('pointermove',e=>{if(!touchDrag||e.pointerId!==touchDrag.pointerId)return;e.preventDefault();updateTouchPreview(e.clientX,e.clientY);},{passive:false});
+ document.addEventListener('pointerup',e=>{if(!touchDrag||e.pointerId!==touchDrag.pointerId)return;const done=touchDrag;touchDrag=null;clearTouchPreview();if(done.position&&!finished&&!playerUsedPieces.has(done.si)&&legal(player,shapes[done.si],done.position.r,done.position.c,1)){selected=done.si;preview=done.position;renderAll();}else{renderAll();}}, {passive:true});
+ document.addEventListener('pointercancel',e=>{if(!touchDrag||e.pointerId!==touchDrag.pointerId)return;touchDrag=null;clearTouchPreview();renderAll();});
+ $('shapes').addEventListener('dragstart',e=>{const btn=e.target.closest('.shape-btn');if(!btn||finished)return;const i=Array.from($('shapes').children).indexOf(btn);if(i<0||playerUsedPieces.has(i)){e.preventDefault();return;}draggedShape=i;selected=i;e.dataTransfer.setData('text/plain',String(i));e.dataTransfer.effectAllowed='move';});
+ $('playerBoard').addEventListener('dragover',e=>{const cell=e.target.closest('.cell');if(!cell||draggedShape===null||finished)return;e.preventDefault();e.dataTransfer.dropEffect='move';const cells=Array.from($('playerBoard').children);const idx=cells.indexOf(cell),r=N-1-(idx%N),c=W-1-Math.floor(idx/N);cells.forEach(el=>el.classList.remove('preview','invalid','drag-target'));const ok=!playerUsedPieces.has(draggedShape)&&legal(player,shapes[draggedShape],r,c,1);shapes[draggedShape].cells.forEach(([dr,dc])=>{const rr=r+dr,cc=c+dc;if(rr>=0&&rr<N&&cc>=0&&cc<W)cells[(W-1-cc)*N+(N-1-rr)].classList.add(ok?'preview':'invalid');});cell.classList.add('drag-target');});
+ $('playerBoard').addEventListener('drop',e=>{const cell=e.target.closest('.cell');if(!cell||draggedShape===null||finished)return;e.preventDefault();const idx=Array.from($('playerBoard').children).indexOf(cell);selected=draggedShape;preview={r:N-1-(idx%N),c:W-1-Math.floor(idx/N)};draggedShape=null;renderAll();});
+ $('shapes').addEventListener('dragend',()=>{if(draggedShape!==null)Array.from($('playerBoard').children).forEach(el=>el.classList.remove('preview','invalid','drag-target'));draggedShape=null;});
+ $('submit').addEventListener('click',submit);$('reset').addEventListener('click',reset);reset();
+})();
+</script>
+</body>
+</html>
